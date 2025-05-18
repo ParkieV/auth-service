@@ -10,7 +10,7 @@ import (
 	"github.com/ParkieV/auth-service/internal/config"
 )
 
-// Client взаимодействует с Keycloak OIDC endpoints
+// Client взаимодействует с Keycloak через OpenID-коннект
 type Client struct {
 	baseURL      string
 	realm        string
@@ -19,7 +19,6 @@ type Client struct {
 	httpClient   *http.Client
 }
 
-// NewClient создаёт обёртку над HTTP-клиентом
 func NewClient(cfg config.KeycloakConfig) *Client {
 	return &Client{
 		baseURL:      cfg.URL,
@@ -30,59 +29,57 @@ func NewClient(cfg config.KeycloakConfig) *Client {
 	}
 }
 
-// Authenticate выполняет grant_type=password
+// Authenticate — grant_type=password
 func (c *Client) Authenticate(username, password string) (string, string, error) {
 	endpoint := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/token", c.baseURL, c.realm)
-	form := url.Values{}
-	form.Set("grant_type", "password")
-	form.Set("client_id", c.clientID)
-	form.Set("client_secret", c.clientSecret)
-	form.Set("username", username)
-	form.Set("password", password)
-
+	form := url.Values{
+		"grant_type":    {"password"},
+		"client_id":     {c.clientID},
+		"client_secret": {c.clientSecret},
+		"username":      {username},
+		"password":      {password},
+	}
 	resp, err := c.httpClient.PostForm(endpoint, form)
 	if err != nil {
 		return "", "", err
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
-		return "", "", fmt.Errorf("authentication failed: status %d", resp.StatusCode)
+		return "", "", fmt.Errorf("authentication failed: %d", resp.StatusCode)
 	}
-	var out struct {
+	var tok struct {
 		AccessToken  string `json:"access_token"`
 		RefreshToken string `json:"refresh_token"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&tok); err != nil {
 		return "", "", err
 	}
-	return out.AccessToken, out.RefreshToken, nil
+	return tok.AccessToken, tok.RefreshToken, nil
 }
 
-// RefreshToken выполняет grant_type=refresh_token
+// RefreshToken — grant_type=refresh_token
 func (c *Client) RefreshToken(refreshToken string) (string, string, error) {
 	endpoint := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/token", c.baseURL, c.realm)
-	form := url.Values{}
-	form.Set("grant_type", "refresh_token")
-	form.Set("client_id", c.clientID)
-	form.Set("client_secret", c.clientSecret)
-	form.Set("refresh_token", refreshToken)
-
+	form := url.Values{
+		"grant_type":    {"refresh_token"},
+		"client_id":     {c.clientID},
+		"client_secret": {c.clientSecret},
+		"refresh_token": {refreshToken},
+	}
 	resp, err := c.httpClient.PostForm(endpoint, form)
 	if err != nil {
 		return "", "", err
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
-		return "", "", fmt.Errorf("refresh failed: status %d", resp.StatusCode)
+		return "", "", fmt.Errorf("refresh failed: %d", resp.StatusCode)
 	}
-	var out struct {
+	var tok struct {
 		AccessToken  string `json:"access_token"`
 		RefreshToken string `json:"refresh_token"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&tok); err != nil {
 		return "", "", err
 	}
-	return out.AccessToken, out.RefreshToken, nil
+	return tok.AccessToken, tok.RefreshToken, nil
 }
