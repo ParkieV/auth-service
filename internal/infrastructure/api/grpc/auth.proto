@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package auth;
+
+option go_package = "github.com/ParkieV/auth-service/internal/infrastructure/api/grpc;grpc";
+
+service AuthService {
+  // Регистрация
+  rpc Register (RegisterRequest)  returns (RegisterResponse);
+  // Логин
+  rpc Login    (LoginRequest)     returns (LoginResponse);
+  // Обновление токенов
+  rpc Refresh  (RefreshRequest)   returns (RefreshResponse);
+}
+
+message RegisterRequest {
+  string email    = 1;
+  string password = 2;
+}
+message RegisterResponse {
+  string user_id = 1;
+}
+
+message LoginRequest {
+  string email    = 1;
+  string password = 2;
+}
+message LoginResponse {
+  string jwt           = 1;
+  string refresh_token = 2;
+}
+
+message RefreshRequest {
+  string refresh_token = 1;
+}
+message RefreshResponse {
+  string jwt           = 1;
+  string refresh_token = 2;
+}
