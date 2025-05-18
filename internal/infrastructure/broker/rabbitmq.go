@@ -1,6 +1,7 @@
 package broker
 
-// RabbitMQPublisher реализует MessageBroker
+import amqp "github.com/rabbitmq/amqp091-go"
+
 type RabbitMQPublisher struct {
 	conn    *amqp.Connection
 	channel *amqp.Channel
@@ -14,7 +15,10 @@ func NewPublisher(url string) (*RabbitMQPublisher, error) {
 	}
 	ch, err := conn.Channel()
 	if err != nil {
-		conn.Close()
+		err := conn.Close()
+		if err != nil {
+			return nil, err
+		}
 		return nil, err
 	}
 	return &RabbitMQPublisher{conn: conn, channel: ch}, nil
@@ -47,6 +51,9 @@ func (r *RabbitMQPublisher) Publish(queue string, body []byte) error {
 
 // Close нужно вызывать при завершении
 func (r *RabbitMQPublisher) Close() error {
-	r.channel.Close()
+	err := r.channel.Close()
+	if err != nil {
+		return err
+	}
 	return r.conn.Close()
 }
