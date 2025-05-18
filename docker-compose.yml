@@ -1,0 +1,59 @@
+version: '3.8'
+services:
+  auth:
+    build: .
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+      - keycloak
+      - logstash
+      - elasticsearch
+      - kibana
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    volumes:
+      - ./configs:/configs
+    environment:
+      - CONFIG_PATH=/configs/config.yaml
+
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: auth
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: authdb
+    ports: ["5432:5432"]
+
+  redis:
+    image: redis:7
+    ports: ["6379:6379"]
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports: ["5672:5672", "15672:15672"]
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:21.1
+    command: ["start-dev","--http-port=8081"]
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports: ["8081:8081"]
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.9.0
+    volumes:
+      - ./configs/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+    ports: ["5000:5000"]
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.9.0
+    environment:
+      - discovery.type=single-node
+    ports: ["9200:9200"]
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.9.0
+    ports: ["5601:5601"]

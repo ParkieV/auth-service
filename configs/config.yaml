@@ -1,0 +1,38 @@
+server:
+  rest_port: 8080
+  grpc_port: 9090
+
+postgres:
+  host:     postgres
+  port:     5432
+  user:     auth
+  password: secret
+  dbname:   authdb
+  sslmode:  disable
+
+redis:
+  addr: "redis:6379"
+  db:   0
+
+rabbitmq:
+  url: "amqp://guest:guest@rabbitmq:5672/"
+
+keycloak:
+  url:      "http://keycloak:8081"
+  realm:    "master"
+  clientID: "auth-service"
+  secret:   "super-secret"
+
+jwt:
+  signing_key: "your-very-secure-signing-key"
+  ttl:         "15m"
+
+email:
+  from:      "noreply@example.com"
+  smtp_host: "smtp.mailserver.com"
+  smtp_port: 587
+  smtp_user: "smtp_user"
+  smtp_pass: "smtp_pass"
+
+logstash:
+  tcp_addr: "logstash:5000"
