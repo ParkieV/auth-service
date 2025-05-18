@@ -4,16 +4,18 @@ import (
 	"database/sql"
 	"fmt"
 
+	_ "github.com/jackc/pgx/stdlib"
+
 	"github.com/ParkieV/auth-service/internal/config"
 	"github.com/ParkieV/auth-service/internal/domain"
 )
 
-// Postgres хранит подключение к БД
+// Postgres хранит подключение и реализует методы UserRepository
 type Postgres struct {
 	db *sql.DB
 }
 
-// NewPostgres открывает соединение и пингует БД
+// NewPostgres открывает соединение по параметрам из cfg и проверяет его.
 func NewPostgres(cfg config.PostgresConfig) (*Postgres, error) {
 	dsn := fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
@@ -29,23 +31,19 @@ func NewPostgres(cfg config.PostgresConfig) (*Postgres, error) {
 	return &Postgres{db: db}, nil
 }
 
-// UserRepository возвращает реализацию domain.UserRepository
-func (p *Postgres) UserRepository() domain.UserRepository {
-	return &userRepo{db: p.db}
+// DB возвращает *sql.DB для тестов или миграций
+func (p *Postgres) DB() *sql.DB {
+	return p.db
 }
 
-type userRepo struct {
-	db *sql.DB
-}
-
-// Save сохраняет нового пользователя
-func (r *userRepo) Save(u *domain.User) error {
+// Save сохраняет пользователя в таблицу users.
+func (p *Postgres) Save(u *domain.User) error {
 	const q = `
-    INSERT INTO users 
-      (id, email, password_hash, confirmation_id, expires_at, confirmed)
-    VALUES ($1, $2, $3, $4, $5, $6)
-    `
-	_, err := r.db.Exec(
+INSERT INTO users
+  (id, email, password_hash, confirmation_id, expires_at, confirmed)
+VALUES ($1,$2,$3,$4,$5,$6)
+`
+	_, err := p.db.Exec(
 		q,
 		u.ID,
 		u.Email.String(),
@@ -57,15 +55,14 @@ func (r *userRepo) Save(u *domain.User) error {
 	return err
 }
 
-// FindByEmail находит пользователя по email
-func (r *userRepo) FindByEmail(email domain.Email) (*domain.User, error) {
+// FindByEmail ищет пользователя по email
+func (p *Postgres) FindByEmail(email domain.Email) (*domain.User, error) {
 	const q = `
-    SELECT id, email, password_hash, confirmation_id, expires_at, confirmed
-      FROM users
-     WHERE email = $1
-    `
-	row := r.db.QueryRow(q, email.String())
-
+SELECT id,email,password_hash,confirmation_id,expires_at,confirmed
+  FROM users
+ WHERE email = $1
+`
+	row := p.db.QueryRow(q, email.String())
 	var (
 		id, emailStr, pwdHash, code string
 		expiresAt                   = new(sql.NullTime)
