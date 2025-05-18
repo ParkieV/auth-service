@@ -10,6 +10,7 @@ type ServerConfig struct {
 	RESTPort int `mapstructure:"rest_port"`
 	GRPCPort int `mapstructure:"grpc_port"`
 }
+
 type PostgresConfig struct {
 	Host     string `mapstructure:"host"`
 	Port     int    `mapstructure:"port"`
@@ -18,23 +19,28 @@ type PostgresConfig struct {
 	DBName   string `mapstructure:"dbname"`
 	SSLMode  string `mapstructure:"sslmode"`
 }
+
 type RedisConfig struct {
 	Addr string `mapstructure:"addr"`
 	DB   int    `mapstructure:"db"`
 }
+
 type RabbitMQConfig struct {
 	URL string `mapstructure:"url"`
 }
+
 type KeycloakConfig struct {
 	URL      string `mapstructure:"url"`
 	Realm    string `mapstructure:"realm"`
-	ClientID string `mapstructure:"clientID"`
+	ClientID string `mapstructure:"client_id"`
 	Secret   string `mapstructure:"secret"`
 }
+
 type JWTConfig struct {
 	SigningKey string        `mapstructure:"signing_key"`
 	TTL        time.Duration `mapstructure:"ttl"`
 }
+
 type EmailConfig struct {
 	From     string `mapstructure:"from"`
 	SMTPHost string `mapstructure:"smtp_host"`
@@ -42,6 +48,7 @@ type EmailConfig struct {
 	SMTPUser string `mapstructure:"smtp_user"`
 	SMTPPass string `mapstructure:"smtp_pass"`
 }
+
 type LogstashConfig struct {
 	TCPAddr string `mapstructure:"tcp_addr"`
 }

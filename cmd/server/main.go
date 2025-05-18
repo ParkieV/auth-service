@@ -18,76 +18,79 @@ import (
 	"github.com/ParkieV/auth-service/internal/config"
 	"github.com/ParkieV/auth-service/internal/infrastructure/api/grpc/server"
 	"github.com/ParkieV/auth-service/internal/infrastructure/api/rest"
+	"github.com/ParkieV/auth-service/internal/infrastructure/broker"
+	"github.com/ParkieV/auth-service/internal/infrastructure/cache"
+	"github.com/ParkieV/auth-service/internal/infrastructure/db"
 	"github.com/ParkieV/auth-service/internal/infrastructure/email"
 	"github.com/ParkieV/auth-service/internal/infrastructure/keycloak"
+	"github.com/ParkieV/auth-service/internal/usecase"
 )
 
 func main() {
-	cfgPath := flag.String("config", "", "path to config file")
+	cfgPath := flag.String("config", "configs/config.yaml", "path to config file")
 	flag.Parse()
-	if *cfgPath == "" {
-		log.Fatal("config file is required")
-	}
 
-	// 1. Load config
 	cfg, err := config.Load(*cfgPath)
 	if err != nil {
-		log.Fatalf("failed to load config: %v", err)
+		log.Fatalf("cannot load config: %v", err)
 	}
 
-	// 2. Init infra
-	pg, err := postgres.NewPostgres(cfg.Postgres)
+	// Infra
+	pg, err := db.NewPostgres(cfg.Postgres)
 	if err != nil {
 		log.Fatalf("postgres init: %v", err)
 	}
-	rdb := redis.NewRedisCache(cfg.Redis)
-	mq, err := rabbitmq.NewPublisher(cfg.RabbitMQ.URL)
+	cache := cache.NewRedisCache(cfg.Redis)
+	mq, err := broker.NewPublisher(cfg.RabbitMQ.URL)
 	if err != nil {
 		log.Fatalf("rabbitmq init: %v", err)
 	}
 	mailer := email.NewSMTPMailer(cfg.Email)
 	kc := keycloak.NewClient(cfg.Keycloak)
 
-	// 3. Wire usecase
-	registerUC := refresh.NewRegisterUsecase(pg.UserRepository(), mq, mailer, kc, rdb, cfg.JWT)
-	loginUC := refresh.NewLoginUsecase(pg.UserRepository(), kc, rdb, cfg.JWT)
+	// Usecases
+	registerUC := usecase.NewRegisterUsecase(pg, mq, cfg.JWT.TTL)
+	loginUC := usecase.NewLoginUsecase(pg, kc, cache)
+	refreshUC := usecase.NewRefreshUsecase(kc, cache, cfg.JWT.TTL)
 
-	// 4. Start REST
+	// REST
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
-	rest.RegisterHandlers(router, registerUC, loginUC)
-	srv := &http.Server{
+	rest.RegisterHandlers(router, registerUC, loginUC, refreshUC)
+	httpSrv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Server.RESTPort),
 		Handler: router,
 	}
 	go func() {
-		log.Printf("REST server listening on %d", cfg.Server.RESTPort)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("REST server error: %v", err)
+		log.Printf("REST listening on %d", cfg.Server.RESTPort)
+		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("REST error: %v", err)
 		}
 	}()
 
-	// 5. Start gRPC
+	// gRPC
 	grpcSrv := grpc.NewServer()
-	server.RegisterGRPC(grpcSrv, registerUC, loginUC)
+	server.RegisterGRPC(grpcSrv, registerUC, loginUC, refreshUC)
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Server.GRPCPort))
 	if err != nil {
-		log.Fatalf("gRPC listen failed: %v", err)
+		log.Fatalf("gRPC listen: %v", err)
 	}
 	go func() {
-		log.Printf("gRPC server listening on %d", cfg.Server.GRPCPort)
+		log.Printf("gRPC listening on %d", cfg.Server.GRPCPort)
 		if err := grpcSrv.Serve(lis); err != nil {
-			log.Fatalf("gRPC server error: %v", err)
+			log.Fatalf("gRPC error: %v", err)
 		}
 	}()
 
-	// 6. Graceful shutdown
+	// Graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	srv.Shutdown(ctx)
+	httpSrv.Shutdown(ctx)
 	grpcSrv.GracefulStop()
-	log.Println("servers stopped")
+	mq.Close()
+	pg.DB().Close()
+	log.Println("shutdown complete")
 }
