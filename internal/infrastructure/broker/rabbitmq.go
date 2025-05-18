@@ -1,7 +1,10 @@
 package broker
 
-import amqp "github.com/rabbitmq/amqp091-go"
+import (
+	amqp "github.com/rabbitmq/amqp091-go"
+)
 
+// RabbitMQPublisher реализует MessageBroker
 type RabbitMQPublisher struct {
 	conn    *amqp.Connection
 	channel *amqp.Channel
@@ -15,10 +18,7 @@ func NewPublisher(url string) (*RabbitMQPublisher, error) {
 	}
 	ch, err := conn.Channel()
 	if err != nil {
-		err := conn.Close()
-		if err != nil {
-			return nil, err
-		}
+		conn.Close()
 		return nil, err
 	}
 	return &RabbitMQPublisher{conn: conn, channel: ch}, nil
@@ -26,15 +26,15 @@ func NewPublisher(url string) (*RabbitMQPublisher, error) {
 
 // Publish кладёт body в очередь queue (JSON)
 func (r *RabbitMQPublisher) Publish(queue string, body []byte) error {
-	// убеждаемся, что очередь существует
-	if _, err := r.channel.QueueDeclare(
+	_, err := r.channel.QueueDeclare(
 		queue,
 		true,  // durable
 		false, // auto-delete
 		false, // exclusive
 		false, // no-wait
 		nil,   // args
-	); err != nil {
+	)
+	if err != nil {
 		return err
 	}
 	return r.channel.Publish(
@@ -49,11 +49,8 @@ func (r *RabbitMQPublisher) Publish(queue string, body []byte) error {
 	)
 }
 
-// Close нужно вызывать при завершении
+// Close закрывает канал и соединение
 func (r *RabbitMQPublisher) Close() error {
-	err := r.channel.Close()
-	if err != nil {
-		return err
-	}
+	r.channel.Close()
 	return r.conn.Close()
 }
