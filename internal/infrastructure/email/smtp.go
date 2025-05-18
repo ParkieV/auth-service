@@ -1,4 +1,3 @@
-// internal/adapter/email/smtp/smtp.go
 package email
 
 import (
@@ -8,14 +7,14 @@ import (
 	"github.com/ParkieV/auth-service/internal/config"
 )
 
-// SMTPMailer отправляет письма по SMTP
+// SMTPMailer отправляет письма через SMTP
 type SMTPMailer struct {
 	auth smtp.Auth
-	host string // "smtp.example.com:587"
+	host string
 	from string
 }
 
-// NewSMTPMailer создаёт SMTPMailer
+// NewSMTPMailer настраивает SMTP-клиент
 func NewSMTPMailer(cfg config.EmailConfig) *SMTPMailer {
 	hostPort := fmt.Sprintf("%s:%d", cfg.SMTPHost, cfg.SMTPPort)
 	auth := smtp.PlainAuth("", cfg.SMTPUser, cfg.SMTPPass, cfg.SMTPHost)
