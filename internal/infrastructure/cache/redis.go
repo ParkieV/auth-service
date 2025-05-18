@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/ParkieV/auth-service/internal/config"
+	"github.com/redis/go-redis"
 )
 
 // RedisCache реализует интерфейс Cache
