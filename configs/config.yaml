@@ -28,11 +28,13 @@ jwt:
   ttl:         "15m"
 
 email:
-  from:      "noreply@example.com"
-  smtp_host: "smtp.mailserver.com"
+  from: "noreply@myapp.io"
+  smtp_host: "smtp.mailgun.org"
   smtp_port: 587
-  smtp_user: "smtp_user"
-  smtp_pass: "smtp_pass"
+  smtp_user: "postmaster@myapp.io"
+  smtp_pass: "${SMTP_PASS}"
+  use_tls: false          # STARTTLS
+  dial_timeout: "5s"
 
 logstash:
   tcp_addr: "logstash:5000"

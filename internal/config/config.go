@@ -42,15 +42,25 @@ type JWTConfig struct {
 }
 
 type EmailConfig struct {
-	From     string `mapstructure:"from"`
-	SMTPHost string `mapstructure:"smtp_host"`
-	SMTPPort int    `mapstructure:"smtp_port"`
-	SMTPUser string `mapstructure:"smtp_user"`
-	SMTPPass string `mapstructure:"smtp_pass"`
+	From        string        `mapstructure:"from"`
+	SMTPHost    string        `mapstructure:"smtp_host"`
+	SMTPPort    int           `mapstructure:"smtp_port"`
+	SMTPUser    string        `mapstructure:"smtp_user"`
+	SMTPPass    string        `mapstructure:"smtp_pass"`
+	UseTLS      bool          `mapstructure:"use_tls"`
+	DialTimeout time.Duration `mapstructure:"dial_timeout"`
 }
 
 type LogstashConfig struct {
 	TCPAddr string `mapstructure:"tcp_addr"`
+}
+
+type CryptoParams struct {
+	Time    uint32
+	Memory  uint32
+	Threads uint8
+	SaltLen uint32
+	KeyLen  uint32
 }
 
 type Config struct {
@@ -58,10 +68,11 @@ type Config struct {
 	Postgres PostgresConfig `mapstructure:"postgres"`
 	Redis    RedisConfig    `mapstructure:"redis"`
 	RabbitMQ RabbitMQConfig `mapstructure:"rabbitmq"`
-	Keycloak KeycloakConfig `mapstructure:"keycloak"`
+	Keycloak KeycloakConfig `mapstructure:"auth_client"`
 	JWT      JWTConfig      `mapstructure:"jwt"`
 	Email    EmailConfig    `mapstructure:"email"`
 	Logstash LogstashConfig `mapstructure:"logstash"`
+	Crypto   CryptoParams   `mapstructure:"crypto"`
 }
 
 func Load(path string) (*Config, error) {
