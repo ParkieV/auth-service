@@ -68,10 +68,10 @@ func (h *Handler) register(c *gin.Context) {
 
 type loginRequest struct {
 	Email    string `json:"email"    binding:"required,email"`
-	Password string `json:"password" binding:"required"`
+	Password string `json:"password" binding:"required,min=8"`
 }
 type loginResponse struct {
-	JWT          string `json:"jwt"`
+	JWT          string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 }
 
@@ -100,7 +100,7 @@ type refreshRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
 }
 type refreshResponse struct {
-	JWT          string `json:"jwt"`
+	JWT          string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 }
 
@@ -140,7 +140,7 @@ func (h *Handler) logout(c *gin.Context) {
 }
 
 type verifyRequest struct {
-	Token string `json:"token" binding:"required"`
+	Token string `json:"access_token" binding:"required"`
 }
 type verifyResponse struct {
 	UserID string `json:"user_id"`

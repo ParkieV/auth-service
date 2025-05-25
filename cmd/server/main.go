@@ -55,11 +55,14 @@ func main() {
 
 	_ = email.NewSMTPMailer(cfg.Email)
 
-	kc := auth_client.NewKeycloakClient(cfg.Keycloak, log)
+	kc, err := auth_client.NewDBTokenRepository(cfg.Postgres, cfg.JWT, log)
+	if err != nil {
+		panic(fmt.Sprintf("Cannot connect to database: %s", err))
+	}
 
 	registerUC := usecase.NewRegisterUsecase(pg, mq, kc, cfg.Email.ConfirmationTTL, log)
 	loginUC := usecase.NewLoginUsecase(pg, kc, redisCache, log)
-	refreshUC := usecase.NewRefreshUsecase(kc, redisCache, cfg.JWT.TTL, log)
+	refreshUC := usecase.NewRefreshUsecase(kc, redisCache, cfg.JWT.RefreshTTL, log)
 	logoutUC := usecase.NewLogoutUsecase(kc, redisCache, log)
 	verifyUC := usecase.NewVerifyUsecase(kc, log)
 
@@ -77,7 +80,7 @@ func main() {
 		log.Info("REST listening", "port", cfg.Server.RESTPort)
 		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Error("REST server error", "err", err)
-			os.Exit(1)
+			panic(fmt.Sprintf("Cannot load REST server: %s", err))
 		}
 	}()
 

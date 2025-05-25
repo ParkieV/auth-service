@@ -2,17 +2,15 @@ package auth_client
 
 import (
 	"context"
-	"encoding/json"
+	"database/sql"
 	"errors"
 	"fmt"
-	"io"
+	"github.com/ParkieV/auth-service/internal/config"
 	"log/slog"
-	"net/http"
-	"net/url"
-	"strings"
 	"time"
 
-	"github.com/ParkieV/auth-service/internal/config"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 type AuthClient interface {
@@ -22,153 +20,104 @@ type AuthClient interface {
 	Logout(ctx context.Context, refreshToken string) error
 }
 
-type KeycloakClient struct {
-	baseURL      string
-	realm        string
-	clientID     string
-	clientSecret string
-	httpClient   *http.Client
-	log          *slog.Logger
+type TokenRepository struct {
+	db         *sql.DB
+	hmacKey    []byte
+	ttl        time.Duration
+	refreshTTL time.Duration
+	log        *slog.Logger
 }
 
-type tokenResp struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token,omitempty"`
-}
-
-type introspectResp struct {
-	Active bool   `json:"active"`
-	Sub    string `json:"sub"`
-}
-
-func NewKeycloakClient(cfg config.KeycloakConfig, log *slog.Logger) *KeycloakClient {
-	return &KeycloakClient{
-		baseURL:      cfg.URL,
-		realm:        cfg.Realm,
-		clientID:     cfg.ClientID,
-		clientSecret: cfg.Secret,
-		httpClient:   &http.Client{Timeout: 10 * time.Second},
-		log:          log,
-	}
-}
-
-func (kc *KeycloakClient) GenerateTokens(ctx context.Context, userID string) (string, string, error) {
-	return kc.tokenExchange(ctx, userID, true)
-}
-
-func (kc *KeycloakClient) IssueAccessToken(ctx context.Context, userID string) (string, error) {
-	access, _, err := kc.tokenExchange(ctx, userID, false)
-	return access, err
-}
-
-func (kc *KeycloakClient) VerifyAccess(ctx context.Context, access string) (bool, string, error) {
-	endpoint := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/token/introspect",
-		kc.baseURL, kc.realm)
-
-	form := url.Values{
-		"token":         {access},
-		"client_id":     {kc.clientID},
-		"client_secret": {kc.clientSecret},
-	}
-
-	var out introspectResp
-	if err := kc.postFormJSON(ctx, endpoint, form, &out); err != nil {
-		return false, "", err
-	}
-	return out.Active, out.Sub, nil
-}
-
-func (kc *KeycloakClient) Logout(ctx context.Context, refresh string) error {
-	endpoint := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/logout",
-		kc.baseURL, kc.realm)
-
-	form := url.Values{
-		"client_id":     {kc.clientID},
-		"client_secret": {kc.clientSecret},
-		"refresh_token": {refresh},
-	}
-
-	resp, err := kc.postForm(ctx, endpoint, form)
-	if err != nil {
-		return err
-	}
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("logout failed: %d", resp.StatusCode)
-	}
-	return nil
-}
-
-func (kc *KeycloakClient) tokenExchange(ctx context.Context, userID string, needRefresh bool) (string, string, error) {
-	adminAT, err := kc.clientCredentials(ctx)
-	if err != nil {
-		return "", "", err
-	}
-
-	endpoint := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/token",
-		kc.baseURL, kc.realm)
-
-	form := url.Values{
-		"grant_type":         {"urn:ietf:params:oauth:grant-type:token-exchange"},
-		"client_id":          {kc.clientID},
-		"client_secret":      {kc.clientSecret},
-		"subject_token":      {adminAT},
-		"subject_token_type": {"urn:ietf:params:oauth:token-type:access_token"},
-		"requested_subject":  {userID},
-	}
-	if needRefresh {
-		form.Set("requested_token_type", "urn:ietf:params:oauth:token-type:refresh_token")
-	}
-
-	var out tokenResp
-	if err := kc.postFormJSON(ctx, endpoint, form, &out); err != nil {
-		return "", "", err
-	}
-	if out.AccessToken == "" {
-		return "", "", errors.New("no access token in response")
-	}
-	return out.AccessToken, out.RefreshToken, nil
-}
-
-func (kc *KeycloakClient) clientCredentials(ctx context.Context) (string, error) {
-	endpoint := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/token",
-		kc.baseURL, kc.realm)
-
-	form := url.Values{
-		"grant_type":    {"client_credentials"},
-		"client_id":     {kc.clientID},
-		"client_secret": {kc.clientSecret},
-	}
-
-	var out tokenResp
-	if err := kc.postFormJSON(ctx, endpoint, form, &out); err != nil {
-		return "", err
-	}
-	if out.AccessToken == "" {
-		return "", errors.New("no access token in client_credentials response")
-	}
-	return out.AccessToken, nil
-}
-
-func (kc *KeycloakClient) postFormJSON(ctx context.Context, endpoint string, form url.Values, dst any) error {
-	resp, err := kc.postForm(ctx, endpoint, form)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		b, _ := io.ReadAll(io.LimitReader(resp.Body, 256))
-		return fmt.Errorf("keycloak: %s (%d): %s", endpoint, resp.StatusCode, string(b))
-	}
-	return json.NewDecoder(resp.Body).Decode(dst)
-}
-
-func (kc *KeycloakClient) postForm(ctx context.Context, endpoint string, form url.Values) (*http.Response, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
+func NewDBTokenRepository(pgCfg config.PostgresConfig, jwtCfg config.JWTConfig, log *slog.Logger) (*TokenRepository, error) { // db *sql.DB, hmacKey []byte, ttl, refreshTTL time.Duration, log *slog.Logger) *TokenRepository {
+	dsn := fmt.Sprintf(
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		pgCfg.Host, pgCfg.Port, pgCfg.User, pgCfg.Password, pgCfg.DBName, pgCfg.SSLMode,
+	)
+	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	return kc.httpClient.Do(req)
+	if err := db.Ping(); err != nil {
+		log.Error("Cannot connect to database", "error", err)
+		return nil, err
+	}
+	return &TokenRepository{
+		db:         db,
+		hmacKey:    jwtCfg.HmacKey(),
+		ttl:        jwtCfg.AccessTTL,
+		refreshTTL: jwtCfg.RefreshTTL,
+		log:        log,
+	}, nil
+}
+
+func (c *TokenRepository) GenerateTokens(ctx context.Context, userID string) (string, string, error) {
+	access, err := c.signJWT(userID)
+	if err != nil {
+		return "", "", err
+	}
+	refresh := uuid.NewString()
+
+	const q = `
+        INSERT INTO tokens (id, user_id, access_token, refresh_token, expires_at)
+        VALUES ($1,$2,$3,$4,$5)`
+	_, err = c.db.ExecContext(ctx, q,
+		uuid.New(), userID, access, refresh, time.Now().Add(c.refreshTTL))
+	if err != nil {
+		return "", "", err
+	}
+	return access, refresh, nil
+}
+
+func (c *TokenRepository) IssueAccessToken(ctx context.Context, userID string) (string, error) {
+	access, err := c.signJWT(userID)
+	if err != nil {
+		return "", err
+	}
+	const q = `UPDATE tokens SET access_token = $1, expires_at = $2
+               WHERE user_id = $3 AND revoked_at IS NULL`
+	_, _ = c.db.ExecContext(ctx, q, access, time.Now().Add(c.refreshTTL), userID)
+	return access, nil
+}
+
+func (c *TokenRepository) VerifyAccess(ctx context.Context, access string) (bool, string, error) {
+	claims, err := c.parseJWT(access)
+	if err != nil {
+		return false, "", err
+	}
+	var revokedAt sql.NullTime
+	err = c.db.QueryRowContext(ctx,
+		`SELECT revoked_at FROM tokens WHERE access_token = $1`, access).Scan(&revokedAt)
+	if err != nil {
+		return false, "", err
+	}
+	if revokedAt.Valid {
+		return false, "", nil
+	}
+	return true, claims.Subject, nil
+}
+
+func (c *TokenRepository) Logout(ctx context.Context, refresh string) error {
+	_, err := c.db.ExecContext(ctx,
+		`UPDATE tokens SET revoked_at = now() WHERE refresh_token = $1`, refresh)
+	return err
+}
+
+func (c *TokenRepository) signJWT(userID string) (string, error) {
+	now := time.Now()
+	claims := jwt.RegisteredClaims{
+		Subject:   userID,
+		IssuedAt:  jwt.NewNumericDate(now),
+		ExpiresAt: jwt.NewNumericDate(now.Add(c.ttl)),
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(c.hmacKey)
+}
+
+func (c *TokenRepository) parseJWT(token string) (*jwt.RegisteredClaims, error) {
+	t, err := jwt.ParseWithClaims(token, &jwt.RegisteredClaims{},
+		func(_ *jwt.Token) (any, error) { return c.hmacKey, nil })
+	if err != nil || !t.Valid {
+		return nil, errors.New("invalid token")
+	}
+	return t.Claims.(*jwt.RegisteredClaims), nil
 }

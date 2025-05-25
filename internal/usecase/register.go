@@ -61,14 +61,6 @@ func (uc *RegisterUsecase) Register(ctx context.Context, emailStr, plainPassword
 		}
 	}
 
-	if err := uc.ac.CreateUser(ctx, user.ID(), email.String(), "user"); err != nil {
-		switch {
-		case errors.Is(err, auth_client.ErrUserExists):
-		default:
-			uc.log.Error("create user in KC failed", "err", err)
-		}
-	}
-
 	msg := struct {
 		UserID string `json:"user_id"`
 		Email  string `json:"email"`

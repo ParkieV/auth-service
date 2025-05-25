@@ -40,23 +40,23 @@ services:
       interval: 10s
       retries: 5
 
-  keycloak:
-    image: quay.io/keycloak/keycloak:25.0
-    environment:
-      KC_DB: postgres
-      KC_DB_URL: "jdbc:postgresql://postgres:5432/auth"
-      KC_DB_USERNAME: auth
-      KC_DB_PASSWORD: authpass
-      KC_HOSTNAME_STRICT: false
-      KC_HTTPS_ENABLED: false
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
-    command: ["start-dev", "--health-enabled=true"]
-    ports:
-      - "8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
+#  keycloak:
+#    image: quay.io/keycloak/keycloak:25.0
+#    environment:
+#      KC_DB: postgres
+#      KC_DB_URL: "jdbc:postgresql://postgres:5432/auth"
+#      KC_DB_USERNAME: auth
+#      KC_DB_PASSWORD: authpass
+#      KC_HOSTNAME_STRICT: false
+#      KC_HTTPS_ENABLED: false
+#      KEYCLOAK_ADMIN: admin
+#      KEYCLOAK_ADMIN_PASSWORD: admin
+#    command: ["start-dev", "--health-enabled=true"]
+#    ports:
+#      - "8080:8080"
+#    depends_on:
+#      postgres:
+#        condition: service_healthy
 
   mailhog:
     image: mailhog/mailhog:v1.0.1

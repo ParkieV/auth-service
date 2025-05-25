@@ -24,8 +24,9 @@ keycloak:
   secret:   "UUTSQCSZpGRI4xB6l5yPjmfp0TnmgWII"
 
 jwt:
-  signing_key: "your-very-secure-signing-key"
-  ttl:         "15m"
+  hmac_secret: "ruVThF/K/2EBp2aBqxZGAaq3OD+e+cA5MbPrvuZ9c14="
+  access_ttl: 15m
+  refresh_ttl: 24h
 
 email:
   from: "noreply@myapp.io"

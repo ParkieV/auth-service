@@ -51,45 +51,32 @@ func (r *RedisCache) Delete(ctx context.Context, key string) error {
 
 func (r *RedisCache) SwapRefresh(
 	ctx context.Context,
-	userID, oldRT, newRT string,
+	userID string,
+	oldRT string,
+	newRT string,
 	ttl time.Duration,
 ) (bool, error) {
+	script := redis.NewScript(`
+		local oldVal = redis.call("GET", KEYS[1])
+		if not oldVal or oldVal ~= ARGV[1] then
+			return 0
+		end
+		redis.call("SET", KEYS[2], ARGV[1], "EX", ARGV[2])
+		redis.call("DEL", KEYS[1])
+		return 1
+	`)
 
-	const maxRetry = 3
-
-	for i := 0; i < maxRetry; i++ {
-		err := r.client.Watch(ctx, func(tx *redis.Tx) error {
-			val, err := tx.Get(ctx, oldRT).Result()
-			switch {
-			case errors.Is(err, redis.Nil):
-				return redis.TxFailedErr
-			case err != nil:
-				return err
-			case val != userID:
-				return redis.TxFailedErr
-			}
-
-			_, err = tx.TxPipelined(ctx, func(p redis.Pipeliner) error {
-				if err := p.SetNX(ctx, newRT, userID, ttl).Err(); err != nil {
-					return err
-				}
-				if ok, _ := p.Get(ctx, newRT).Int(); ok == 0 {
-					return redis.TxFailedErr
-				}
-				p.Del(ctx, oldRT)
-				return nil
-			})
-			return err
-		}, oldRT, newRT)
-
-		switch {
-		case err == nil:
-			return true, nil
-		case errors.Is(err, redis.TxFailedErr):
-			continue
-		default:
-			return false, err
-		}
+	res, err := script.Run(ctx, r.client, []string{oldRT, newRT}, userID, int(ttl.Seconds())).Result()
+	if err != nil {
+		r.log.Error("lua SwapRefresh failed", "err", err)
+		return false, err
 	}
-	return false, nil
+
+	success, ok := res.(int64)
+	if !ok || success != 1 {
+		r.log.Warn("SwapRefresh denied", "oldRT", oldRT, "expectedUserID", userID)
+		return false, nil
+	}
+
+	return true, nil
 }

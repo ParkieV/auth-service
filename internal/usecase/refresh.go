@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	ErrInvalidRefreshToken = errors.New("invalid usecase token")
-	ErrRefreshFailed       = errors.New("usecase failed")
+	ErrInvalidRefreshToken = errors.New("invalid refresh token")
+	ErrRefreshFailed       = errors.New("refresh failed")
 )
 
 type RefreshUsecase struct {
@@ -35,6 +35,7 @@ func (uc *RefreshUsecase) Refresh(ctx context.Context, oldRT string) (string, st
 		case ctx.Err() != nil:
 			return "", "", ctx.Err()
 		case errors.Is(err, cache.ErrKeyNotFound):
+			uc.log.Error("Cannot get refresh token from cache")
 			return "", "", ErrInvalidRefreshToken
 		default:
 			uc.log.Error("cache get failed", "err", err)
@@ -52,6 +53,7 @@ func (uc *RefreshUsecase) Refresh(ctx context.Context, oldRT string) (string, st
 		return "", "", ErrRefreshFailed
 	}
 	if !ok {
+		uc.log.Error("Problem is here")
 		return "", "", ErrInvalidRefreshToken
 	}
 
@@ -60,7 +62,7 @@ func (uc *RefreshUsecase) Refresh(ctx context.Context, oldRT string) (string, st
 		if ctx.Err() != nil {
 			return "", "", ctx.Err()
 		}
-		uc.log.Error("issue access failed", "err", err)
+		uc.log.Error("issue access token failed", "err", err)
 		return "", "", ErrRefreshFailed
 	}
 

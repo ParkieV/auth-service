@@ -1,6 +1,8 @@
 package config
 
 import (
+	"encoding/base64"
+	"log"
 	"time"
 
 	"github.com/spf13/viper"
@@ -37,8 +39,17 @@ type KeycloakConfig struct {
 }
 
 type JWTConfig struct {
-	SigningKey string        `mapstructure:"signing_key"`
-	TTL        time.Duration `mapstructure:"ttl"`
+	HMACSecret string        `mapstructure:"hmac_secret"`
+	AccessTTL  time.Duration `mapstructure:"access_ttl"`
+	RefreshTTL time.Duration `mapstructure:"refresh_ttl"`
+}
+
+func (j *JWTConfig) HmacKey() []byte {
+	hmacKey, err := base64.StdEncoding.DecodeString(j.HMACSecret)
+	if err != nil {
+		log.Fatal("invalid hmac_secret: must be base64-encoded")
+	}
+	return hmacKey
 }
 
 type EmailConfig struct {
