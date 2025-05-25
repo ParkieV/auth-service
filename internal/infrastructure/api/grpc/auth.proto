@@ -4,13 +4,18 @@ package auth;
 
 option go_package = "github.com/ParkieV/auth-service/internal/infrastructure/api/grpc;grpc";
 
+import "google/protobuf/empty.proto";
+
 service AuthService {
-  // Регистрация
-  rpc Register (RegisterRequest)  returns (RegisterResponse);
-  // Логин
-  rpc Login    (LoginRequest)     returns (LoginResponse);
-  // Обновление токенов
-  rpc Refresh  (RefreshRequest)   returns (RefreshResponse);
+  rpc Register (RegisterRequest) returns (RegisterResponse);
+
+  rpc Login    (LoginRequest)    returns (LoginResponse);
+
+  rpc Refresh  (RefreshRequest)  returns (RefreshResponse);
+
+  rpc Logout   (LogoutRequest)   returns (google.protobuf.Empty);
+
+  rpc Verify   (VerifyRequest)   returns (VerifyResponse);
 }
 
 message RegisterRequest {
@@ -36,4 +41,16 @@ message RefreshRequest {
 message RefreshResponse {
   string jwt           = 1;
   string refresh_token = 2;
+}
+
+message LogoutRequest {
+  string refresh_token = 1;
+}
+
+message VerifyRequest {
+  string token = 1;
+}
+message VerifyResponse {
+  string user_id = 1;
+  bool   active  = 2;
 }

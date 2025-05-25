@@ -12,6 +12,8 @@ func RegisterGRPC(
 	registerUC *usecase.RegisterUsecase,
 	loginUC *usecase.LoginUsecase,
 	refreshUC *usecase.RefreshUsecase,
+	logoutUC *usecase.LogoutUsecase,
+	verifyUC *usecase.VerifyUsecase,
 ) {
-	authpb.RegisterAuthServiceServer(s, NewAuthServer(registerUC, loginUC, refreshUC))
+	authpb.RegisterAuthServiceServer(s, NewAuthServer(registerUC, loginUC, refreshUC, logoutUC, verifyUC))
 }
