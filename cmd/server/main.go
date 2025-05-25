@@ -18,11 +18,11 @@ import (
 	"github.com/ParkieV/auth-service/internal/config"
 	"github.com/ParkieV/auth-service/internal/infrastructure/api/grpc/server"
 	"github.com/ParkieV/auth-service/internal/infrastructure/api/rest"
+	"github.com/ParkieV/auth-service/internal/infrastructure/auth_client"
 	"github.com/ParkieV/auth-service/internal/infrastructure/broker"
 	"github.com/ParkieV/auth-service/internal/infrastructure/cache"
 	"github.com/ParkieV/auth-service/internal/infrastructure/db"
 	"github.com/ParkieV/auth-service/internal/infrastructure/email"
-	"github.com/ParkieV/auth-service/internal/infrastructure/keycloak"
 	"github.com/ParkieV/auth-service/internal/usecase"
 )
 
@@ -46,7 +46,7 @@ func main() {
 		log.Fatalf("rabbitmq init: %v", err)
 	}
 	mailer := email.NewSMTPMailer(cfg.Email)
-	kc := keycloak.NewClient(cfg.Keycloak)
+	kc := auth_client.NewClient(cfg.Keycloak)
 
 	// Usecases
 	registerUC := usecase.NewRegisterUsecase(pg, mq, cfg.JWT.TTL)
