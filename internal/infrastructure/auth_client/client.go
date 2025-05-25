@@ -1,4 +1,3 @@
-// infrastructure/auth_client/keycloak.go
 package auth_client
 
 import (
