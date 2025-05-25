@@ -7,7 +7,6 @@ import (
 	authpb "github.com/ParkieV/auth-service/internal/infrastructure/api/grpc"
 )
 
-// RegisterGRPC регистрирует все RPC-ендпоинты на переданном *grpc.Server
 func RegisterGRPC(
 	s *grpc.Server,
 	registerUC *usecase.RegisterUsecase,

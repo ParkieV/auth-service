@@ -8,14 +8,12 @@ import (
 	"net/http"
 )
 
-// Handler оборачивает все необходимые usecase
 type Handler struct {
 	registerUC *usecase.RegisterUsecase
 	loginUC    *usecase.LoginUsecase
 	refreshUC  *usecase.RefreshUsecase
 }
 
-// RegisterHandlers мапит REST-эндпоинты
 func RegisterHandlers(
 	router *gin.Engine,
 	registerUC *usecase.RegisterUsecase,
@@ -30,8 +28,6 @@ func RegisterHandlers(
 		api.POST("/refresh", h.Refresh)
 	}
 }
-
-// -- Register --
 
 type registerRequest struct {
 	Email    string `json:"email"    binding:"required,email"`
@@ -50,7 +46,6 @@ func (h *Handler) Register(c *gin.Context) {
 	}
 	id, err := h.registerUC.Register(req.Email, req.Password)
 	if err != nil {
-		// Если формат e-mail некорректен — 400, иначе 500
 		if errors.Is(err, emailErrors.ErrInvalidEmail) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		} else {
@@ -60,8 +55,6 @@ func (h *Handler) Register(c *gin.Context) {
 	}
 	c.JSON(http.StatusCreated, registerResponse{UserID: id})
 }
-
-// -- Login --
 
 type loginRequest struct {
 	Email    string `json:"email"    binding:"required,email"`
@@ -81,14 +74,11 @@ func (h *Handler) Login(c *gin.Context) {
 	}
 	access, refresh, err := h.loginUC.Login(req.Email, req.Password)
 	if err != nil {
-		// 401 для неавторизованных
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, loginResponse{JWT: access, RefreshToken: refresh})
 }
-
-// -- Refresh --
 
 type refreshRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
@@ -107,7 +97,6 @@ func (h *Handler) Refresh(c *gin.Context) {
 	}
 	access, refresh, err := h.refreshUC.Refresh(req.RefreshToken)
 	if err != nil {
-		// 401, если токен невалиден
 		if err == usecase.ErrInvalidRefreshToken {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		} else {

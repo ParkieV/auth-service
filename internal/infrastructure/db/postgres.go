@@ -10,12 +10,10 @@ import (
 	"github.com/ParkieV/auth-service/internal/domain"
 )
 
-// Postgres хранит подключение и реализует методы UserRepository
 type Postgres struct {
 	db *sql.DB
 }
 
-// NewPostgres открывает соединение по параметрам из cfg и проверяет его.
 func NewPostgres(cfg config.PostgresConfig) (*Postgres, error) {
 	dsn := fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
@@ -31,12 +29,10 @@ func NewPostgres(cfg config.PostgresConfig) (*Postgres, error) {
 	return &Postgres{db: db}, nil
 }
 
-// DB возвращает *sql.DB для тестов или миграций
 func (p *Postgres) DB() *sql.DB {
 	return p.db
 }
 
-// Save сохраняет пользователя в таблицу users.
 func (p *Postgres) Save(u *domain.User) error {
 	const q = `
 INSERT INTO users
@@ -55,7 +51,6 @@ VALUES ($1,$2,$3,$4,$5,$6)
 	return err
 }
 
-// FindByEmail ищет пользователя по email
 func (p *Postgres) FindByEmail(email domain.Email) (*domain.User, error) {
 	const q = `
 SELECT id,email,password_hash,confirmation_id,expires_at,confirmed

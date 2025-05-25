@@ -10,7 +10,6 @@ import (
 	"github.com/ParkieV/auth-service/internal/config"
 )
 
-// Client взаимодействует с Keycloak через OpenID-коннект
 type Client struct {
 	baseURL      string
 	realm        string
@@ -29,7 +28,6 @@ func NewClient(cfg config.KeycloakConfig) *Client {
 	}
 }
 
-// Authenticate — grant_type=password
 func (c *Client) Authenticate(username, password string) (string, string, error) {
 	endpoint := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/token", c.baseURL, c.realm)
 	form := url.Values{
@@ -57,7 +55,6 @@ func (c *Client) Authenticate(username, password string) (string, string, error)
 	return tok.AccessToken, tok.RefreshToken, nil
 }
 
-// RefreshToken — grant_type=refresh_token
 func (c *Client) RefreshToken(refreshToken string) (string, string, error) {
 	endpoint := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/token", c.baseURL, c.realm)
 	form := url.Values{

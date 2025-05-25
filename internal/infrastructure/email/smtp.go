@@ -7,14 +7,12 @@ import (
 	"github.com/ParkieV/auth-service/internal/config"
 )
 
-// SMTPMailer отправляет письма через SMTP
 type SMTPMailer struct {
 	auth smtp.Auth
 	host string
 	from string
 }
 
-// NewSMTPMailer настраивает SMTP-клиент
 func NewSMTPMailer(cfg config.EmailConfig) *SMTPMailer {
 	hostPort := fmt.Sprintf("%s:%d", cfg.SMTPHost, cfg.SMTPPort)
 	auth := smtp.PlainAuth("", cfg.SMTPUser, cfg.SMTPPass, cfg.SMTPHost)
@@ -25,7 +23,6 @@ func NewSMTPMailer(cfg config.EmailConfig) *SMTPMailer {
 	}
 }
 
-// Send отправляет письмо с HTML-телом
 func (m *SMTPMailer) Send(to, subject, htmlBody string) error {
 	msg := []byte(fmt.Sprintf(
 		"From: %s\r\nTo: %s\r\nSubject: %s\r\n"+

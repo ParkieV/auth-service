@@ -9,7 +9,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// AuthServer имплементирует authpb.AuthServiceServer
 type AuthServer struct {
 	authpb.UnimplementedAuthServiceServer
 	registerUC *usecase.RegisterUsecase
@@ -17,7 +16,6 @@ type AuthServer struct {
 	refreshUC  *usecase.RefreshUsecase
 }
 
-// NewAuthServer конструирует AuthServer
 func NewAuthServer(
 	registerUC *usecase.RegisterUsecase,
 	loginUC *usecase.LoginUsecase,
