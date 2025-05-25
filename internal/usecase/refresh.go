@@ -1,7 +1,13 @@
 package usecase
 
 import (
+	"context"
 	"errors"
+	"github.com/ParkieV/auth-service/internal/infrastructure/auth_client"
+	_ "github.com/ParkieV/auth-service/internal/infrastructure/auth_client"
+	"github.com/ParkieV/auth-service/internal/infrastructure/cache"
+	"github.com/google/uuid"
+	"log/slog"
 	"time"
 )
 
@@ -10,42 +16,53 @@ var (
 	ErrRefreshFailed       = errors.New("usecase failed")
 )
 
-type KeycloakClient interface {
-	Authenticate(email, password string) (accessToken, refreshToken string, err error)
-	RefreshToken(refreshToken string) (newAccessToken, newRefreshToken string, err error)
-}
-
-type Cache interface {
-	Get(key string) (string, error)
-	Set(key, value string, ttl time.Duration) error
-	Delete(key string) error
-}
-
 type RefreshUsecase struct {
-	kc         KeycloakClient
-	cache      Cache
+	ac         auth_client.AuthClient
+	cache      cache.Cache
 	refreshTTL time.Duration
+	log        *slog.Logger
 }
 
-func NewRefreshUsecase(kc KeycloakClient, cache Cache, refreshTTL time.Duration) *RefreshUsecase {
-	return &RefreshUsecase{kc: kc, cache: cache, refreshTTL: refreshTTL}
+func NewRefreshUsecase(ac auth_client.AuthClient, cache cache.Cache, refreshTTL time.Duration, log *slog.Logger) *RefreshUsecase {
+	return &RefreshUsecase{ac: ac, cache: cache, refreshTTL: refreshTTL, log: log}
 }
 
-func (uc *RefreshUsecase) Refresh(refreshToken string) (string, string, error) {
-	userID, err := uc.cache.Get(refreshToken)
+func (uc *RefreshUsecase) Refresh(ctx context.Context, oldRT string) (string, string, error) {
+
+	userID, err := uc.cache.Get(ctx, oldRT)
 	if err != nil {
+		switch {
+		case ctx.Err() != nil:
+			return "", "", ctx.Err()
+		case errors.Is(err, cache.ErrKeyNotFound):
+			return "", "", ErrInvalidRefreshToken
+		default:
+			uc.log.Error("cache get failed", "err", err)
+			return "", "", err
+		}
+	}
+
+	newRT := uuid.NewString()
+	ok, err := uc.cache.SwapRefresh(ctx, userID, oldRT, newRT, uc.refreshTTL)
+	if err != nil {
+		if ctx.Err() != nil {
+			return "", "", ctx.Err()
+		}
+		uc.log.Error("cache swap failed", "err", err)
+		return "", "", ErrRefreshFailed
+	}
+	if !ok {
 		return "", "", ErrInvalidRefreshToken
 	}
 
-	newAccess, newRefresh, err := uc.kc.RefreshToken(refreshToken)
+	newAT, err := uc.ac.IssueAccessToken(ctx, userID)
 	if err != nil {
+		if ctx.Err() != nil {
+			return "", "", ctx.Err()
+		}
+		uc.log.Error("issue access failed", "err", err)
 		return "", "", ErrRefreshFailed
 	}
 
-	if err := uc.cache.Set(newRefresh, userID, uc.refreshTTL); err != nil {
-	}
-
-	_ = uc.cache.Delete(refreshToken)
-
-	return newAccess, newRefresh, nil
+	return newAT, newRT, nil
 }
