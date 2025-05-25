@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/ParkieV/auth-service/internal/config"
 	"golang.org/x/crypto/argon2"
+	"strings"
 )
 
 var (
@@ -94,21 +95,29 @@ func argonHash(pwd string, prm config.CryptoParams) (string, error) {
 }
 
 func parsePHC(phc string) (config.CryptoParams, phcParts, error) {
-	var v uint32
-	var prm config.CryptoParams
-	var saltB64, hashB64 string
 
-	_, err := fmt.Sscanf(phc,
-		"$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
-		&v, &prm.Memory, &prm.Time, &prm.Threads, &saltB64, &hashB64)
+	parts := strings.Split(phc, "$")
+	if len(parts) != 6 || parts[1] != "argon2id" {
+		return config.CryptoParams{}, phcParts{}, fmt.Errorf("invalid phc format")
+	}
+
+	// version
+	var version uint32
+	if _, err := fmt.Sscanf(parts[2], "v=%d", &version); err != nil {
+		return config.CryptoParams{}, phcParts{}, err
+	}
+
+	var prm config.CryptoParams
+	if _, err := fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d",
+		&prm.Memory, &prm.Time, &prm.Threads); err != nil {
+		return config.CryptoParams{}, phcParts{}, err
+	}
+
+	salt, err := base64.RawStdEncoding.DecodeString(parts[4])
 	if err != nil {
 		return config.CryptoParams{}, phcParts{}, err
 	}
-	salt, err := base64.RawStdEncoding.DecodeString(saltB64)
-	if err != nil {
-		return config.CryptoParams{}, phcParts{}, err
-	}
-	hash, err := base64.RawStdEncoding.DecodeString(hashB64)
+	hash, err := base64.RawStdEncoding.DecodeString(parts[5])
 	if err != nil {
 		return config.CryptoParams{}, phcParts{}, err
 	}

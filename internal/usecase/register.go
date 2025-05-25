@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/ParkieV/auth-service/internal/infrastructure/auth_client"
 	"github.com/ParkieV/auth-service/internal/infrastructure/broker"
 	"github.com/ParkieV/auth-service/internal/infrastructure/db"
 	"log/slog"
@@ -22,12 +23,13 @@ var (
 type RegisterUsecase struct {
 	repo   db.UserMutRepository
 	broker broker.MessageBroker
+	ac     auth_client.AuthClient
 	ttl    time.Duration
 	log    *slog.Logger
 }
 
-func NewRegisterUsecase(repo db.UserMutRepository, broker broker.MessageBroker, confirmationTTL time.Duration, log *slog.Logger) *RegisterUsecase {
-	return &RegisterUsecase{repo: repo, broker: broker, ttl: confirmationTTL, log: log}
+func NewRegisterUsecase(repo db.UserMutRepository, broker broker.MessageBroker, ac auth_client.AuthClient, confirmationTTL time.Duration, log *slog.Logger) *RegisterUsecase {
+	return &RegisterUsecase{repo: repo, broker: broker, ac: ac, ttl: confirmationTTL, log: log}
 }
 
 func (uc *RegisterUsecase) Register(ctx context.Context, emailStr, plainPassword string) (string, error) {
@@ -56,6 +58,14 @@ func (uc *RegisterUsecase) Register(ctx context.Context, emailStr, plainPassword
 		default:
 			uc.log.Error("save user failed", "err", err)
 			return "", err
+		}
+	}
+
+	if err := uc.ac.CreateUser(ctx, user.ID(), email.String(), "user"); err != nil {
+		switch {
+		case errors.Is(err, auth_client.ErrUserExists):
+		default:
+			uc.log.Error("create user in KC failed", "err", err)
 		}
 	}
 

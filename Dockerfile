@@ -1,15 +1,18 @@
-FROM golang:1.21-alpine AS build
+FROM golang:1.23-bookworm AS builder
+WORKDIR /src
 
-WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN go build -o auth-service ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" \
+    -o /bin/server ./cmd/server
 
-FROM alpine:3.18
-RUN apk add --no-cache ca-certificates
-WORKDIR /root/
-COPY --from=build /app/auth-service .
-COPY configs/config.yaml configs/config.yaml
-ENTRYPOINT ["./auth-service", "--config", "configs/config.yaml"]
+FROM gcr.io/distroless/static-debian12:nonroot AS app
+WORKDIR /app
+
+COPY --from=builder /bin/server /app/server
+COPY configs /app/configs
+
+EXPOSE 8080 9090
+ENTRYPOINT ["/app/server", "-config", "configs/config.yaml"]

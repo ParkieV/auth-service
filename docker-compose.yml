@@ -1,59 +1,85 @@
-version: '3.8'
+version: "3.9"
 services:
-  auth:
-    build: .
-    depends_on:
-      - postgres
-      - redis
-      - rabbitmq
-      - keycloak
-      - logstash
-      - elasticsearch
-      - kibana
-    ports:
-      - "8080:8080"
-      - "9090:9090"
-    volumes:
-      - ./configs:/configs
-    environment:
-      - CONFIG_PATH=/configs/config.yaml
-
   postgres:
-    image: postgres:15
+    image: postgres:16
     environment:
-      POSTGRES_USER: auth
-      POSTGRES_PASSWORD: secret
-      POSTGRES_DB: authdb
-    ports: ["5432:5432"]
+      POSTGRES_USER:     auth
+      POSTGRES_PASSWORD: authpass
+      POSTGRES_DB:       auth
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auth"]
+      interval: 5s
+      retries: 5
 
   redis:
     image: redis:7
-    ports: ["6379:6379"]
+    command: ["redis-server", "--save", "", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 5
 
   rabbitmq:
-    image: rabbitmq:3-management
-    ports: ["5672:5672", "15672:15672"]
+    image: rabbitmq:3.13-management
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports: ["5672:5672"]
+    volumes:
+      - rabbit-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      retries: 5
 
   keycloak:
-    image: quay.io/keycloak/keycloak:21.1
-    command: ["start-dev","--http-port=8081"]
+    image: quay.io/keycloak/keycloak:25.0
     environment:
+      KC_DB: postgres
+      KC_DB_URL: "jdbc:postgresql://postgres:5432/auth"
+      KC_DB_USERNAME: auth
+      KC_DB_PASSWORD: authpass
+      KC_HOSTNAME_STRICT: false
+      KC_HTTPS_ENABLED: false
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
-    ports: ["8081:8081"]
+    command: ["start-dev", "--health-enabled=true"]
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
 
-  logstash:
-    image: docker.elastic.co/logstash/logstash:8.9.0
-    volumes:
-      - ./configs/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
-    ports: ["5000:5000"]
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    ports: ["8025:8025"]
 
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.9.0
+  auth-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:  {condition: service_healthy}
+      redis:     {condition: service_healthy}
+      rabbitmq:  {condition: service_healthy}
     environment:
-      - discovery.type=single-node
-    ports: ["9200:9200"]
+      CONFIG_PATH: /app/configs/config.yaml
+    ports:
+      - "8090:8090"
+      - "9090:9090"
+    volumes:
+      - ./configs:/app/configs:ro
+    restart: unless-stopped
 
-  kibana:
-    image: docker.elastic.co/kibana/kibana:8.9.0
-    ports: ["5601:5601"]
+volumes:
+  pg-data:
+  redis-data:
+  rabbit-data:

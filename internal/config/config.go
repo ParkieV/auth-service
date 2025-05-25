@@ -69,7 +69,7 @@ type Config struct {
 	Postgres PostgresConfig `mapstructure:"postgres"`
 	Redis    RedisConfig    `mapstructure:"redis"`
 	RabbitMQ RabbitMQConfig `mapstructure:"rabbitmq"`
-	Keycloak KeycloakConfig `mapstructure:"auth_client"`
+	Keycloak KeycloakConfig `mapstructure:"keycloak"`
 	JWT      JWTConfig      `mapstructure:"jwt"`
 	Email    EmailConfig    `mapstructure:"email"`
 	Logstash LogstashConfig `mapstructure:"logstash"`

@@ -39,7 +39,7 @@ func main() {
 
 	log := slog.Default()
 
-	pg, err := db.NewPostgres(cfg.Postgres)
+	pg, err := db.NewPostgres(cfg.Postgres, log)
 	if err != nil {
 		log.Error("postgres init", "err", err)
 		os.Exit(1)
@@ -57,7 +57,7 @@ func main() {
 
 	kc := auth_client.NewKeycloakClient(cfg.Keycloak, log)
 
-	registerUC := usecase.NewRegisterUsecase(pg, mq, cfg.Email.ConfirmationTTL, log)
+	registerUC := usecase.NewRegisterUsecase(pg, mq, kc, cfg.Email.ConfirmationTTL, log)
 	loginUC := usecase.NewLoginUsecase(pg, kc, redisCache, log)
 	refreshUC := usecase.NewRefreshUsecase(kc, redisCache, cfg.JWT.TTL, log)
 	logoutUC := usecase.NewLogoutUsecase(kc, redisCache, log)

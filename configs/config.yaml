@@ -1,13 +1,13 @@
 server:
-  rest_port: 8080
+  rest_port: 8090
   grpc_port: 9090
 
 postgres:
   host:     postgres
   port:     5432
   user:     auth
-  password: secret
-  dbname:   authdb
+  password: authpass
+  dbname:   auth
   sslmode:  disable
 
 redis:
@@ -18,10 +18,10 @@ rabbitmq:
   url: "amqp://guest:guest@rabbitmq:5672/"
 
 keycloak:
-  url:      "http://keycloak:8081"
-  realm:    "master"
-  clientID: "auth-service"
-  secret:   "super-secret"
+  url:      "http://keycloak:8080"
+  realm:    "auth-realm"
+  client_id: "backend"
+  secret:   "UUTSQCSZpGRI4xB6l5yPjmfp0TnmgWII"
 
 jwt:
   signing_key: "your-very-secure-signing-key"

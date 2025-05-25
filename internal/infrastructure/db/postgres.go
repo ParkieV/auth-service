@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/jackc/pgconn"
@@ -28,9 +29,12 @@ type UserMutRepository interface {
 	UpdatePasswordHash(ctx context.Context, userID, newHash string) error
 }
 
-type Postgres struct{ db *sql.DB }
+type Postgres struct {
+	db  *sql.DB
+	log *slog.Logger
+}
 
-func NewPostgres(cfg config.PostgresConfig) (*Postgres, error) {
+func NewPostgres(cfg config.PostgresConfig, log *slog.Logger) (*Postgres, error) {
 	dsn := fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName, cfg.SSLMode,
@@ -40,9 +44,10 @@ func NewPostgres(cfg config.PostgresConfig) (*Postgres, error) {
 		return nil, err
 	}
 	if err := db.Ping(); err != nil {
+		log.Error("Cannot connect to database", "error", err)
 		return nil, err
 	}
-	return &Postgres{db: db}, nil
+	return &Postgres{db: db, log: log}, nil
 }
 
 func (p *Postgres) DB() *sql.DB { return p.db }
@@ -84,13 +89,14 @@ func (p *Postgres) FindByEmail(ctx context.Context, email domain.Email) (*domain
 	if err := row.Scan(&id, &emailStr, &hash, &code, &expires, &confirmed); err != nil {
 		return nil, err
 	}
-
 	em, err := domain.NewEmail(emailStr)
 	if err != nil {
+
 		return nil, err
 	}
 	user, err := domain.RehydrateUser(id, em, hash, code, expires, confirmed)
 	if err != nil {
+		p.log.Error("Error to get domain model", "error", err)
 		return nil, err
 	}
 	return user, nil

@@ -38,14 +38,15 @@ func (uc *LoginUsecase) Login(ctx context.Context, emailStr, plainPassword strin
 
 	user, err := uc.repo.FindByEmail(ctx, email)
 	if err != nil {
+		uc.log.Error("AUF1", "email", email)
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return "", "", ctxErr
 		}
 		return "", "", ErrUserNotFound
 	}
-	if !user.IsConfirmed() {
-		return "", "", ErrNotConfirmed
-	}
+	//if !user.IsConfirmed() {
+	//	return "", "", ErrNotConfirmed
+	//}
 
 	ok, needRehash := user.VerifyPassword(plainPassword)
 	if !ok {
@@ -64,6 +65,7 @@ func (uc *LoginUsecase) Login(ctx context.Context, emailStr, plainPassword strin
 
 	access, refresh, err := uc.ac.GenerateTokens(ctx, user.ID())
 	if err != nil {
+		uc.log.Error("ERRORRR HERE", "error", err)
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return "", "", ctxErr
 		}
