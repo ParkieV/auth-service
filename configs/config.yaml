@@ -33,8 +33,9 @@ email:
   smtp_port: 587
   smtp_user: "postmaster@myapp.io"
   smtp_pass: "${SMTP_PASS}"
-  use_tls: false          # STARTTLS
+  use_tls: false
   dial_timeout: "5s"
+  confirmation_ttl: "24h"
 
 logstash:
   tcp_addr: "logstash:5000"

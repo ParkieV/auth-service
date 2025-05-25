@@ -4,7 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/ParkieV/auth-service/internal/config"
+	authpb "github.com/ParkieV/auth-service/internal/infrastructure/api/grpc"
 	"github.com/ParkieV/auth-service/internal/infrastructure/api/grpc/server"
 	"github.com/ParkieV/auth-service/internal/infrastructure/api/rest"
 	"github.com/ParkieV/auth-service/internal/infrastructure/auth_client"
@@ -32,65 +33,83 @@ func main() {
 
 	cfg, err := config.Load(*cfgPath)
 	if err != nil {
-		log.Fatalf("cannot load config: %v", err)
+		slog.Error("cannot load config", "err", err)
+		os.Exit(1)
 	}
 
-	// Infra
+	log := slog.Default()
+
 	pg, err := db.NewPostgres(cfg.Postgres)
 	if err != nil {
-		log.Fatalf("postgres init: %v", err)
+		log.Error("postgres init", "err", err)
+		os.Exit(1)
 	}
-	cache := cache.NewRedisCache(cfg.Redis)
-	mq, err := broker.NewPublisher(cfg.RabbitMQ.URL)
+
+	redisCache := cache.NewRedisCache(cfg.Redis, log)
+
+	mq, err := broker.NewPublisher(cfg.RabbitMQ.URL, log)
 	if err != nil {
-		log.Fatalf("rabbitmq init: %v", err)
+		log.Error("rabbitmq init", "err", err)
+		os.Exit(1)
 	}
-	mailer := email.NewSMTPMailer(cfg.Email)
-	kc := auth_client.NewClient(cfg.Keycloak)
 
-	// Usecases
-	registerUC := usecase.NewRegisterUsecase(pg, mq, cfg.JWT.TTL)
-	loginUC := usecase.NewLoginUsecase(pg, kc, cache)
-	refreshUC := usecase.NewRefreshUsecase(kc, cache, cfg.JWT.TTL)
+	_ = email.NewSMTPMailer(cfg.Email)
 
-	// REST
+	kc := auth_client.NewKeycloakClient(cfg.Keycloak, log)
+
+	registerUC := usecase.NewRegisterUsecase(pg, mq, cfg.Email.ConfirmationTTL, log)
+	loginUC := usecase.NewLoginUsecase(pg, kc, redisCache, log)
+	refreshUC := usecase.NewRefreshUsecase(kc, redisCache, cfg.JWT.TTL, log)
+	logoutUC := usecase.NewLogoutUsecase(kc, redisCache, log)
+	verifyUC := usecase.NewVerifyUsecase(kc, log)
+
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
-	rest.RegisterHandlers(router, registerUC, loginUC, refreshUC)
+
+	rest.RegisterHandlers(router, registerUC, loginUC, refreshUC, logoutUC, verifyUC)
+
 	httpSrv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Server.RESTPort),
 		Handler: router,
 	}
+
 	go func() {
-		log.Printf("REST listening on %d", cfg.Server.RESTPort)
+		log.Info("REST listening", "port", cfg.Server.RESTPort)
 		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("REST error: %v", err)
+			log.Error("REST server error", "err", err)
+			os.Exit(1)
 		}
 	}()
 
-	// gRPC
 	grpcSrv := grpc.NewServer()
-	server.RegisterGRPC(grpcSrv, registerUC, loginUC, refreshUC)
+	authSrv := server.NewAuthServer(registerUC, loginUC, refreshUC, logoutUC, verifyUC)
+	authpb.RegisterAuthServiceServer(grpcSrv, authSrv)
+
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Server.GRPCPort))
 	if err != nil {
-		log.Fatalf("gRPC listen: %v", err)
+		log.Error("gRPC listen", "err", err)
+		os.Exit(1)
 	}
 	go func() {
-		log.Printf("gRPC listening on %d", cfg.Server.GRPCPort)
+		log.Info("gRPC listening", "port", cfg.Server.GRPCPort)
 		if err := grpcSrv.Serve(lis); err != nil {
-			log.Fatalf("gRPC error: %v", err)
+			log.Error("gRPC server error", "err", err)
+			os.Exit(1)
 		}
 	}()
 
-	// Graceful shutdown
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+	<-stop
+	log.Info("shutdown initiated")
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	httpSrv.Shutdown(ctx)
+
+	_ = httpSrv.Shutdown(ctx)
 	grpcSrv.GracefulStop()
-	mq.Close()
-	pg.DB().Close()
-	log.Println("shutdown complete")
+	_ = mq.Close()
+	_ = pg.DB().Close()
+
+	log.Info("shutdown complete")
 }

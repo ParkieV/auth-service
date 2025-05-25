@@ -42,13 +42,14 @@ type JWTConfig struct {
 }
 
 type EmailConfig struct {
-	From        string        `mapstructure:"from"`
-	SMTPHost    string        `mapstructure:"smtp_host"`
-	SMTPPort    int           `mapstructure:"smtp_port"`
-	SMTPUser    string        `mapstructure:"smtp_user"`
-	SMTPPass    string        `mapstructure:"smtp_pass"`
-	UseTLS      bool          `mapstructure:"use_tls"`
-	DialTimeout time.Duration `mapstructure:"dial_timeout"`
+	From            string        `mapstructure:"from"`
+	SMTPHost        string        `mapstructure:"smtp_host"`
+	SMTPPort        int           `mapstructure:"smtp_port"`
+	SMTPUser        string        `mapstructure:"smtp_user"`
+	SMTPPass        string        `mapstructure:"smtp_pass"`
+	UseTLS          bool          `mapstructure:"use_tls"`
+	DialTimeout     time.Duration `mapstructure:"dial_timeout"`
+	ConfirmationTTL time.Duration `mapstructure:"confirmation_ttl"`
 }
 
 type LogstashConfig struct {
