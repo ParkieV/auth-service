@@ -47,7 +47,7 @@ func main() {
 
 	redisCache := cache.NewRedisCache(cfg.Redis, log)
 
-	mq, err := broker.NewPublisher(cfg.RabbitMQ.URL, log)
+	mq, err := broker.NewPublisher(cfg.RabbitMQ.URL, log, "auth.events", "send-email")
 	if err != nil {
 		log.Error("rabbitmq init", "err", err)
 		os.Exit(1)

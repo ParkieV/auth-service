@@ -18,14 +18,14 @@ func TestRegister_Success(t *testing.T) {
 	uc := usecase.NewRegisterUsecase(repo, broker, 24*time.Hour)
 
 	repo.On("Save", mock.AnythingOfType("*domain.User")).Return(nil)
-	broker.On("Publish", "email.confirm", mock.Anything).Return(nil)
+	broker.On("PublishToQueue", "email.confirm", mock.Anything).Return(nil)
 
 	id, err := uc.Register("alice@example.com", "hashpwd")
 	assert.NoError(t, err)
 	assert.NotEmpty(t, id)
 
 	repo.AssertCalled(t, "Save", mock.Anything)
-	broker.AssertCalled(t, "Publish", "email.confirm", mock.Anything)
+	broker.AssertCalled(t, "PublishToQueue", "email.confirm", mock.Anything)
 }
 
 func TestRegister_InvalidEmail(t *testing.T) {
@@ -51,7 +51,7 @@ func TestRegister_BrokerError(t *testing.T) {
 	uc := usecase.NewRegisterUsecase(repo, broker, time.Hour)
 
 	repo.On("Save", mock.Anything).Return(nil)
-	broker.On("Publish", "email.confirm", mock.Anything).Return(errors.New("mq down"))
+	broker.On("PublishToQueue", "email.confirm", mock.Anything).Return(errors.New("mq down"))
 
 	_, err := uc.Register("eve@example.com", "pwd")
 	assert.EqualError(t, err, "mq down")

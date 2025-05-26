@@ -73,10 +73,29 @@ func (uc *RegisterUsecase) Register(ctx context.Context, emailStr, plainPassword
 	body, err := json.Marshal(msg)
 	if err != nil {
 		uc.log.Error("marshal confirm payload failed", "err", err)
-		return userID, nil
 	}
 
-	if err := uc.broker.Publish(ctx, "email.confirm", body); err != nil {
+	if err := uc.broker.PublishToQueue(ctx, "email.confirm", body); err != nil {
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
+		uc.log.Error("publish confirm email failed", "err", err)
+	}
+
+	msg2 := struct {
+		UserID string `json:"user_id"`
+		Email  string `json:"email"`
+	}{
+		UserID: userID,
+		Email:  email.String(),
+	}
+
+	body, err = json.Marshal(msg2)
+	if err != nil {
+		uc.log.Error("marshal confirm payload failed", "err", err)
+	}
+
+	if err := uc.broker.PublishToTopic(ctx, "UserRegistered", body); err != nil {
 		if ctx.Err() != nil {
 			return "", ctx.Err()
 		}

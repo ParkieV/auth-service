@@ -2,9 +2,8 @@ package rest
 
 import (
 	"errors"
-	"net/http"
-
 	"github.com/gin-gonic/gin"
+	"net/http"
 
 	"github.com/ParkieV/auth-service/internal/domain"
 	"github.com/ParkieV/auth-service/internal/usecase"
@@ -124,6 +123,7 @@ func (h *Handler) refresh(c *gin.Context) {
 
 type logoutRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
+	UserID       string `json:"user_id" binding:"required"`
 }
 
 func (h *Handler) logout(c *gin.Context) {
@@ -132,7 +132,7 @@ func (h *Handler) logout(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := h.logoutUC.Logout(c.Request.Context(), req.RefreshToken); err != nil {
+	if err := h.logoutUC.Logout(c.Request.Context(), req.UserID, req.RefreshToken); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}

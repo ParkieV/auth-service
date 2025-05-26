@@ -2,8 +2,10 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"github.com/ParkieV/auth-service/internal/infrastructure/auth_client"
+	"github.com/ParkieV/auth-service/internal/infrastructure/broker"
 	"github.com/ParkieV/auth-service/internal/infrastructure/cache"
 	"github.com/ParkieV/auth-service/internal/infrastructure/db"
 	"log/slog"
@@ -19,14 +21,15 @@ var (
 )
 
 type LoginUsecase struct {
-	repo  db.UserMutRepository
-	ac    auth_client.AuthClient
-	cache cache.Cache
-	log   *slog.Logger
+	repo   db.UserMutRepository
+	ac     auth_client.AuthClient
+	cache  cache.Cache
+	broker broker.MessageBroker
+	log    *slog.Logger
 }
 
-func NewLoginUsecase(repo db.UserMutRepository, ac auth_client.AuthClient, cache cache.Cache, log *slog.Logger) *LoginUsecase {
-	return &LoginUsecase{repo: repo, ac: ac, cache: cache, log: log}
+func NewLoginUsecase(repo db.UserMutRepository, ac auth_client.AuthClient, cache cache.Cache, broker broker.MessageBroker, log *slog.Logger) *LoginUsecase {
+	return &LoginUsecase{repo: repo, ac: ac, cache: cache, broker: broker, log: log}
 }
 
 func (uc *LoginUsecase) Login(ctx context.Context, emailStr, plainPassword string) (string, string, error) {
@@ -75,5 +78,25 @@ func (uc *LoginUsecase) Login(ctx context.Context, emailStr, plainPassword strin
 	if err := uc.cache.Set(ctx, refresh, user.ID(), 24*time.Hour); err != nil {
 		uc.log.WarnContext(ctx, "cache set failed", "err", err)
 	}
+
+	msg := struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+	}{
+		AccessToken:  access,
+		RefreshToken: refresh,
+	}
+	body, err := json.Marshal(msg)
+	if err != nil {
+		uc.log.Error("marshal confirm payload failed", "err", err)
+	}
+
+	if err := uc.broker.PublishToTopic(ctx, "UserLoggedIn", body); err != nil {
+		if ctx.Err() != nil {
+			return "", "", ctx.Err()
+		}
+		uc.log.Error("publish confirm email failed", "err", err)
+	}
+
 	return access, refresh, nil
 }
