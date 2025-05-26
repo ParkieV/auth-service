@@ -61,10 +61,10 @@ func main() {
 	}
 
 	registerUC := usecase.NewRegisterUsecase(pg, mq, kc, cfg.Email.ConfirmationTTL, log)
-	loginUC := usecase.NewLoginUsecase(pg, kc, redisCache, log)
-	refreshUC := usecase.NewRefreshUsecase(kc, redisCache, cfg.JWT.RefreshTTL, log)
-	logoutUC := usecase.NewLogoutUsecase(kc, redisCache, log)
-	verifyUC := usecase.NewVerifyUsecase(kc, log)
+	loginUC := usecase.NewLoginUsecase(pg, kc, redisCache, mq, log)
+	refreshUC := usecase.NewRefreshUsecase(kc, mq, redisCache, cfg.JWT.RefreshTTL, log)
+	logoutUC := usecase.NewLogoutUsecase(kc, mq, redisCache, log)
+	verifyUC := usecase.NewVerifyUsecase(kc, mq, log)
 
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
